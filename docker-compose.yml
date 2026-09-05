@@ -1,0 +1,76 @@
+services:
+
+  postgres:
+    image: postgres:17
+    container_name: monkeeper-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  api:
+    build:
+      context: ./backend
+
+    container_name: monkeeper-api
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MONKEEPER_SECRET_KEY: ${MONKEEPER_SECRET_KEY}
+
+    ports:
+      - "8000:8000"
+
+
+  collector:
+    build:
+      context: ./collector
+
+    container_name: monkeeper-collector
+    restart: unless-stopped
+
+    depends_on:
+      api:
+        condition: service_started
+
+    environment:
+      MONKEEPER_API_URL: http://api:8000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      COLLECTOR_POLL_INTERVAL: 5
+      METRICS_INTERVAL: 15
+      TOPOLOGY_INTERVAL: 60
+      REPLICA_METRICS_INTERVAL: 60
+      REQUEST_METRICS_INTERVAL: 60
+
+  frontend:
+    build:
+      context: ./frontend
+
+    container_name: monkeeper-frontend
+    restart: unless-stopped
+
+    depends_on:
+      api:
+        condition: service_started
+
+    ports:
+      - "80:80"
