@@ -22,7 +22,7 @@ if [ ! -f ".env" ]; then
     echo "Creating .env..."
 
     POSTGRES_PASSWORD="$(openssl rand -hex 24)"
-    MONKEEPER_SECRET_KEY="$(openssl rand -hex 32)"
+    MONKEEPER_SECRET_KEY="$(python3 -c 'import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
 
     cat > .env <<ENVEOF
 POSTGRES_DB=monkeeper
